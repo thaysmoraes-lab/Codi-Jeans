@@ -1,14 +1,15 @@
 """
 app.py — Sistema Financeiro Codi.com
-Página principal com navegação e visão geral
 """
-
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
-import plotly.express as px
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from style import apply_style, full_sidebar
 from engine import (
-    load_vendas, load_contas, build_kpis, build_dre_pivot,
+    load_vendas, load_contas, build_kpis, build_dre,
     filter_vendas, filter_cap, MESES_ORDER
 )
 
@@ -18,59 +19,8 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
+apply_style()
 
-# ── CSS ──────────────────────────────────────────────────────────────────────
-st.markdown("""
-<style>
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
-
-html, body, [class*="css"] {
-    font-family: 'DM Sans', sans-serif;
-}
-
-/* Sidebar */
-[data-testid="stSidebar"] {
-    background: #111111 !important;
-    border-right: 1px solid #2a2a2a;
-}
-[data-testid="stSidebar"] * { color: #d4d0c8 !important; }
-[data-testid="stSidebar"] .stSelectbox label,
-[data-testid="stSidebar"] .stMultiSelect label { color: #888 !important; font-size: 11px !important; text-transform: uppercase; letter-spacing: 0.08em; }
-
-/* Metric cards */
-[data-testid="metric-container"] {
-    background: #1a1a1a;
-    border: 1px solid #2a2a2a;
-    border-radius: 10px;
-    padding: 16px 20px;
-}
-[data-testid="metric-container"] label { color: #888 !important; font-size: 11px !important; text-transform: uppercase; letter-spacing: 0.06em; }
-[data-testid="metric-container"] [data-testid="stMetricValue"] { color: #f0ede8 !important; font-size: 22px !important; font-weight: 600; }
-[data-testid="metric-container"] [data-testid="stMetricDelta"] { font-size: 12px !important; }
-
-/* Headers */
-h1 { color: #C9A84C !important; font-weight: 600 !important; letter-spacing: -0.02em; }
-h2, h3 { color: #f0ede8 !important; font-weight: 500 !important; }
-
-/* Dataframe */
-[data-testid="stDataFrame"] { border: 1px solid #2a2a2a; border-radius: 8px; }
-
-/* Tabs */
-[data-baseweb="tab-list"] { background: #1a1a1a; border-radius: 8px; padding: 4px; gap: 4px; }
-[data-baseweb="tab"] { background: transparent !important; color: #888 !important; border-radius: 6px !important; }
-[aria-selected="true"] { background: #C9A84C !important; color: #111 !important; }
-
-/* Divider */
-hr { border-color: #2a2a2a; }
-
-/* Logo area */
-.logo-area { padding: 8px 0 24px 0; border-bottom: 1px solid #2a2a2a; margin-bottom: 24px; }
-.logo-text { font-size: 20px; font-weight: 600; color: #C9A84C; letter-spacing: 0.05em; }
-.logo-sub  { font-size: 10px; color: #555; text-transform: uppercase; letter-spacing: 0.15em; }
-</style>
-""", unsafe_allow_html=True)
-
-# ── Carregar dados ────────────────────────────────────────────────────────────
 @st.cache_data(show_spinner=False)
 def get_all_data():
     vendas, impostos, cv, ca, custo = load_vendas()
@@ -81,153 +31,131 @@ with st.spinner("Carregando dados..."):
     vendas, impostos, cv, ca, custo, cap, car = get_all_data()
 
 # ── Sidebar ───────────────────────────────────────────────────────────────────
-with st.sidebar:
-    st.markdown('<div class="logo-area"><div class="logo-text">CODI.COM</div><div class="logo-sub">Jeans Wear · Sistema Financeiro</div></div>', unsafe_allow_html=True)
+anos_sel  = []
+meses_sel = None
 
+def filtros():
+    global anos_sel, meses_sel
     anos_disp = sorted(vendas["ANO"].dropna().unique().astype(int))
-    anos_sel = st.multiselect("Ano", anos_disp, default=anos_disp)
-
+    anos_sel  = st.multiselect("Ano", anos_disp, default=anos_disp)
     meses_disp = [m for m in MESES_ORDER if m in vendas["MES"].values]
-    meses_sel = st.multiselect("Mês", meses_disp, default=[])
+    m = st.multiselect("Mês", meses_disp, default=[])
+    meses_sel = m if m else None
 
-    if not meses_sel:
-        meses_sel = None
-
-    st.markdown("---")
-    st.caption("Navegação")
-    st.page_link("app.py", label="🏠 Visão Geral", icon=None)
-    st.page_link("pages/01_fluxo_caixa.py",      label="📊 Fluxo de Caixa")
-    st.page_link("pages/02_dre.py",               label="📋 DRE")
-    st.page_link("pages/03_projecao_dre.py",      label="🔮 Projeção DRE")
-    st.page_link("pages/04_despesas_fornecedor.py", label="🏭 Despesas por Fornecedor")
-    st.page_link("pages/05_simulacao_dfc.py",     label="⚡ Simulação DFC")
+full_sidebar(filtros_fn=filtros, current="app.py")
 
 # ── KPIs ──────────────────────────────────────────────────────────────────────
 kpis = build_kpis(vendas, impostos, cv, ca, custo, cap, anos=anos_sel, meses=meses_sel)
 
-st.markdown("# Visão Geral")
-st.caption(f"Período: {', '.join(map(str, anos_sel))} {'· ' + ', '.join(meses_sel) if meses_sel else ''}")
-
-def fmt(v): return f"R$ {v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+def fmt(v): return f"R$ {v:,.2f}".replace(",","X").replace(".","," ).replace("X",".")
 def pct(v): return f"{v:.1%}"
 
-col1, col2, col3, col4 = st.columns(4)
-col1.metric("Receita Bruta", fmt(kpis["receita"]))
-col2.metric("Margem Bruta", fmt(kpis["margem_bruta"]), pct(kpis["margem_bruta_pct"]))
-col3.metric("Ebitda Operacional", fmt(kpis["ebtida_operacional"]), pct(kpis["ebtida_operacional_pct"]))
-col4.metric("Ebitda Final", fmt(kpis["ebtida_final"]), pct(kpis["ebtida_final_pct"]))
+# Header com logo inline
+st.markdown("""
+<div style="display:flex;align-items:center;gap:16px;margin-bottom:4px">
+  <h1 style="margin:0;border:none;padding:0">Visão Geral</h1>
+</div>
+""", unsafe_allow_html=True)
+periodo = f"{', '.join(map(str, anos_sel))}" + (f" · {', '.join(meses_sel)}" if meses_sel else "")
+st.caption(f"📅 Período: {periodo}")
+
+st.markdown('<div style="height:8px"></div>', unsafe_allow_html=True)
+
+# Linha 1 — KPIs principais
+c1,c2,c3,c4 = st.columns(4)
+c1.metric("💰 Receita Bruta",          fmt(kpis["receita"]))
+c2.metric("📊 Margem Bruta",           fmt(kpis["margem_bruta"]),       pct(kpis["margem_bruta_pct"]))
+c3.metric("⚙️ Ebitda Operacional",     fmt(kpis["ebtida_operacional"]), pct(kpis["ebtida_operacional_pct"]))
+c4.metric("🏁 Ebitda Final",           fmt(kpis["ebtida_final"]),       pct(kpis["ebtida_final_pct"]))
 
 st.markdown("---")
 
-col5, col6, col7, col8 = st.columns(4)
-col5.metric("CMV", fmt(kpis["custo"]), f"{kpis['custo']/kpis['receita']:.1%}" if kpis["receita"] else "—")
-col6.metric("Simples Nacional", fmt(kpis["impostos"]))
-col7.metric("Comissões", fmt(kpis["comissao"]))
-col8.metric("Despesas c/ Folha", fmt(kpis["desp_folha"]))
+# Linha 2 — Custos
+c5,c6,c7,c8 = st.columns(4)
+c5.metric("🏭 CMV",              fmt(kpis["custo"]),      f"{kpis['custo']/kpis['receita']:.1%}" if kpis["receita"] else "—")
+c6.metric("🧾 Simples Nacional", fmt(kpis["impostos"]))
+c7.metric("🤝 Comissões",        fmt(kpis["comissao"]))
+c8.metric("👥 Despesas c/ Folha",fmt(kpis["desp_folha"]))
 
 st.markdown("---")
 
-# ── Gráfico receita x margem por mês ─────────────────────────────────────────
+# ── Gráfico receita x margem ──────────────────────────────────────────────────
 st.subheader("Receita × Margem Bruta por mês")
 
-from engine import build_dre
-vf = filter_vendas(vendas, anos_sel, meses_sel)
+vf    = filter_vendas(vendas, anos_sel, meses_sel)
 imp_f = filter_vendas(impostos, anos_sel, meses_sel)
-cv_f = filter_vendas(cv, anos_sel, meses_sel)
-ca_f = filter_vendas(ca, anos_sel, meses_sel)
-cu_f = filter_vendas(custo, anos_sel, meses_sel)
+cv_f  = filter_vendas(cv, anos_sel, meses_sel)
+ca_f  = filter_vendas(ca, anos_sel, meses_sel)
+cu_f  = filter_vendas(custo, anos_sel, meses_sel)
 cap_f = filter_cap(cap, anos_sel, meses_sel)
 
 dre = build_dre(vf, imp_f, cv_f, ca_f, cu_f, cap_f, groupby="MES")
 
 if not dre.empty:
-    rec_mes = dre[dre["Conta"] == "1-Receita Bruta"][["MES", "ValorDRE"]].copy()
-    mg_mes  = dre[dre["Conta"] == "5-Margem Bruta R$"][["MES", "ValorDRE"]].copy()
-    ebt_mes = dre[dre["Conta"] == "9.3-Ebtida Final"][["MES", "ValorDRE"]].copy()
-
-    rec_mes = rec_mes.set_index("MES").reindex([m for m in MESES_ORDER if m in rec_mes["MES"].values])
-    mg_mes  = mg_mes.set_index("MES").reindex(rec_mes.index)
-    ebt_mes = ebt_mes.set_index("MES").reindex(rec_mes.index)
+    rec_mes = dre[dre["Conta"]=="1-Receita Bruta"][["MES","ValorDRE"]].set_index("MES")
+    mg_mes  = dre[dre["Conta"]=="5-Margem Bruta R$"][["MES","ValorDRE"]].set_index("MES")
+    ebt_mes = dre[dre["Conta"]=="9.3-Ebtida Final"][["MES","ValorDRE"]].set_index("MES")
+    idx = [m for m in MESES_ORDER if m in rec_mes.index]
+    rec_mes = rec_mes.reindex(idx); mg_mes = mg_mes.reindex(idx); ebt_mes = ebt_mes.reindex(idx)
 
     fig = go.Figure()
-    fig.add_bar(
-        name="Receita Bruta",
-        x=rec_mes.index,
-        y=rec_mes["ValorDRE"],
-        marker_color="#C9A84C",
-        opacity=0.85,
-    )
-    fig.add_bar(
-        name="Margem Bruta",
-        x=mg_mes.index,
-        y=mg_mes["ValorDRE"],
-        marker_color="#4CAF9B",
-        opacity=0.85,
-    )
-    fig.add_scatter(
-        name="Ebitda Final",
-        x=ebt_mes.index,
-        y=ebt_mes["ValorDRE"],
-        mode="lines+markers",
-        line=dict(color="#E07050", width=2),
-        marker=dict(size=7),
-    )
+    fig.add_bar(name="Receita Bruta", x=idx, y=rec_mes["ValorDRE"],
+                marker_color="#C9A84C", opacity=0.9)
+    fig.add_bar(name="Margem Bruta",  x=idx, y=mg_mes["ValorDRE"],
+                marker_color="#2D6A4F", opacity=0.85)
+    fig.add_scatter(name="Ebitda Final", x=idx, y=ebt_mes["ValorDRE"],
+                    mode="lines+markers",
+                    line=dict(color="#E07050", width=2.5),
+                    marker=dict(size=8, color="#E07050"))
     fig.update_layout(
-        plot_bgcolor="#1a1a1a",
-        paper_bgcolor="#1a1a1a",
-        font_color="#d4d0c8",
+        plot_bgcolor="#0d0d0d", paper_bgcolor="#0d0d0d", font_color="#d4d0c8",
         barmode="group",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
-        margin=dict(l=0, r=0, t=40, b=0),
-        height=340,
-        yaxis=dict(gridcolor="#2a2a2a", tickprefix="R$ ", tickformat=",.0f"),
-        xaxis=dict(gridcolor="#2a2a2a"),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0,
+                    bgcolor="rgba(0,0,0,0)", font=dict(color="#d4d0c8")),
+        margin=dict(l=0,r=0,t=40,b=0), height=360,
+        yaxis=dict(gridcolor="#1e1e1e", tickprefix="R$ ", tickformat=",.0f",
+                   color="#888"),
+        xaxis=dict(gridcolor="#1e1e1e", color="#888"),
     )
     st.plotly_chart(fig, use_container_width=True)
 
-# ── Mini DRE resumo ───────────────────────────────────────────────────────────
+st.markdown("---")
+
+# ── Resumo DRE ────────────────────────────────────────────────────────────────
 st.subheader("Resumo DRE")
 
-dre_data = {
-    "Conta": [
-        "1-Receita Bruta", "2-Custo Mercadoria Vendida", "3-Simples Nacional",
-        "4-Comissão", "5-Margem Bruta R$", "6-Despesas Operacionais",
-        "7-Despesas com Folha", "8-Ebtida Operacional",
-        "9.1-Empréstimos", "9.2-Retirada de sócios", "9.3-Ebtida Final"
-    ],
-    "Valor (R$)": [
-        kpis["receita"], kpis["custo"], kpis["impostos"],
-        kpis["comissao"], kpis["margem_bruta"], kpis["desp_operacional"],
-        kpis["desp_folha"], kpis["ebtida_operacional"],
-        kpis["emprestimos"], kpis["retiradas"], kpis["ebtida_final"]
-    ],
-    "AV%": [
-        kpis["receita"] / kpis["receita"] if kpis["receita"] else 0,
-        kpis["custo"] / kpis["receita"] if kpis["receita"] else 0,
-        kpis["impostos"] / kpis["receita"] if kpis["receita"] else 0,
-        kpis["comissao"] / kpis["receita"] if kpis["receita"] else 0,
-        kpis["margem_bruta_pct"],
-        kpis["desp_operacional"] / kpis["receita"] if kpis["receita"] else 0,
-        kpis["desp_folha"] / kpis["receita"] if kpis["receita"] else 0,
-        kpis["ebtida_operacional_pct"],
-        kpis["emprestimos"] / kpis["receita"] if kpis["receita"] else 0,
-        kpis["retiradas"] / kpis["receita"] if kpis["receita"] else 0,
-        kpis["ebtida_final_pct"],
-    ]
-}
+linhas = [
+    ("1 — Receita Bruta",           kpis["receita"]),
+    ("2 — Custo Mercadoria Vendida", kpis["custo"]),
+    ("3 — Simples Nacional",         kpis["impostos"]),
+    ("4 — Comissão",                 kpis["comissao"]),
+    ("5 — Margem Bruta",             kpis["margem_bruta"]),
+    ("6 — Despesas Operacionais",    kpis["desp_operacional"]),
+    ("7 — Despesas com Folha",       kpis["desp_folha"]),
+    ("8 — Ebtida Operacional",       kpis["ebtida_operacional"]),
+    ("9.1 — Empréstimos",            kpis["emprestimos"]),
+    ("9.2 — Retirada de Sócios",     kpis["retiradas"]),
+    ("9.3 — Ebtida Final",           kpis["ebtida_final"]),
+]
+rec = kpis["receita"] or 1
+df_r = pd.DataFrame(linhas, columns=["Conta","Valor (R$)"])
+df_r["AV%"] = df_r["Valor (R$)"] / rec
 
-df_resumo = pd.DataFrame(dre_data)
+DESTAQUE = {"5 — Margem Bruta","8 — Ebtida Operacional","9.3 — Ebtida Final"}
 
-def color_rows(row):
-    negativo = row["Valor (R$)"] < 0
-    if row["Conta"] in ["5-Margem Bruta R$", "8-Ebtida Operacional", "9.3-Ebtida Final"]:
-        cor = "#1a3a2a" if not negativo else "#3a1a1a"
-        return [f"background-color: {cor}"] * len(row)
-    return [""] * len(row)
+def style_dre(row):
+    if row["Conta"] in DESTAQUE:
+        bg = "#0d2a1a" if row["Valor (R$)"] >= 0 else "#2a0d0d"
+        clr = "#C9A84C"
+        return [f"background:{bg};color:{clr};font-weight:700"] * len(row)
+    if row["Conta"] == "1 — Receita Bruta":
+        return ["background:#1a1400;color:#C9A84C;font-weight:700"] * len(row)
+    return ["background:#0d0d0d;color:#d4d0c8"] * len(row)
 
-df_styled = (
-    df_resumo.style
-    .apply(color_rows, axis=1)
-    .format({"Valor (R$)": lambda v: fmt(v), "AV%": "{:.1%}"})
+st.dataframe(
+    df_r.style.apply(style_dre, axis=1)
+        .format({"Valor (R$)": lambda v: fmt(v), "AV%": "{:.1%}"}),
+    use_container_width=True,
+    hide_index=True,
+    height=430,
 )
-st.dataframe(df_styled, use_container_width=True, hide_index=True, height=420)
