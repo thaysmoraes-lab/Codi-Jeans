@@ -10,41 +10,14 @@ import re
 import io
 from pathlib import Path
 from datetime import datetime
+import os as _os, sys as _sys
+_sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
+from style import apply_style, full_sidebar
 
 st.set_page_config(page_title="Importar Dados · Codi.com", layout="wide")
+apply_style()
 
-st.markdown("""
-<style>
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&display=swap');
-html, body, [class*="css"] { font-family: 'DM Sans', sans-serif; }
-[data-testid="stSidebar"] { background: #111111 !important; border-right: 1px solid #2a2a2a; }
-[data-testid="stSidebar"] * { color: #d4d0c8 !important; }
-h1 { color: #C9A84C !important; font-weight: 600 !important; }
-h2, h3 { color: #f0ede8 !important; font-weight: 500 !important; }
-hr { border-color: #2a2a2a; }
-.upload-box {
-    border: 2px dashed #2a2a2a;
-    border-radius: 12px;
-    padding: 24px;
-    margin: 8px 0;
-    transition: border-color 0.2s;
-}
-.success-box {
-    background: #0d2a1a;
-    border: 1px solid #1a4a2a;
-    border-radius: 8px;
-    padding: 12px 16px;
-    margin: 8px 0;
-}
-.error-box {
-    background: #2a0d0d;
-    border: 1px solid #4a1a1a;
-    border-radius: 8px;
-    padding: 12px 16px;
-    margin: 8px 0;
-}
-</style>
-""", unsafe_allow_html=True)
+
 
 DATA_DIR = Path(__file__).parent.parent / "data"
 

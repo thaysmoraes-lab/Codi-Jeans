@@ -8,6 +8,9 @@ import numpy as np
 import plotly.graph_objects as go
 import sys
 sys.path.append(str(__file__).replace("/pages/05_simulacao_dfc.py", ""))
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from style import apply_style, full_sidebar
 
 from engine import (
     load_vendas, load_contas, filter_vendas, filter_cap,
@@ -15,21 +18,9 @@ from engine import (
 )
 
 st.set_page_config(page_title="Simulação DFC · Codi.com", layout="wide")
+apply_style()
 
-st.markdown("""
-<style>
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&display=swap');
-html, body, [class*="css"] { font-family: 'DM Sans', sans-serif; }
-[data-testid="stSidebar"] { background: #111111 !important; border-right: 1px solid #2a2a2a; }
-[data-testid="stSidebar"] * { color: #d4d0c8 !important; }
-h1 { color: #C9A84C !important; font-weight: 600 !important; }
-h2, h3 { color: #f0ede8 !important; font-weight: 500 !important; }
-hr { border-color: #2a2a2a; }
-[data-testid="metric-container"] { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 10px; padding: 16px 20px; }
-[data-testid="metric-container"] label { color: #888 !important; font-size: 11px !important; text-transform: uppercase; }
-[data-testid="metric-container"] [data-testid="stMetricValue"] { color: #f0ede8 !important; font-size: 22px !important; font-weight: 600; }
-</style>
-""", unsafe_allow_html=True)
+
 
 @st.cache_data(show_spinner=False)
 def get_all():
